@@ -149,8 +149,6 @@ void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint
     const float SINK_FACTOR = 0.15;
     const float MATCH_PERCENT = 0.5;
     const float UPPER_DISTANCE_LIMIT = 1.4;
-    // const float SINK_FACTOR = 0.0;
-    // const float MATCH_PERCENT = 1.0;
 
     cv::Rect smallerROI;
     smallerROI.x = boundingBox.roi.x + SINK_FACTOR * boundingBox.roi.width / 2.0;
