@@ -1,4 +1,3 @@
-
 /* INCLUDES FOR THIS PROJECT */
 #include <iostream>
 #include <fstream>
@@ -133,7 +132,7 @@ int main(int argc, const char *argv[])
         clusterLidarWithROI((dataBuffer.end()-1)->boundingBoxes, (dataBuffer.end() - 1)->lidarPoints, shrinkFactor, P_rect_00, R_rect_00, RT);
 
         // Visualize 3D objects
-        bVis = false;
+        bVis = true;
         if(bVis)
         {
             show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(1000, 1000), true);
@@ -149,8 +148,10 @@ int main(int argc, const char *argv[])
         /* DETECT IMAGE KEYPOINTS */
 
         // convert current image to grayscale
-        cv::Mat imgGray;
+        cv::Mat imgGray, imgCLAHE;
         cv::cvtColor((dataBuffer.end()-1)->cameraImg, imgGray, cv::COLOR_BGR2GRAY);
+        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8,8));
+        clahe->apply(imgGray, imgCLAHE);
 
         // extract 2D keypoints from current image
         vector<cv::KeyPoint> keypoints; // create empty feature list for current image
@@ -210,7 +211,6 @@ int main(int argc, const char *argv[])
         {
 
             /* MATCH KEYPOINT DESCRIPTORS */
-
             vector<cv::DMatch> matches;
             string matcherType = "MAT_BF";        // MAT_BF, MAT_FLANN
             string descriptorType = "DES_BINARY"; // DES_BINARY, DES_HOG
@@ -234,10 +234,7 @@ int main(int argc, const char *argv[])
             map<int, int> bbBestMatches;
             matchBoundingBoxes(matches, bbBestMatches, *(dataBuffer.end()-2), *(dataBuffer.end()-1), true); // associate bounding boxes between current and previous frame using keypoint matches
             //// EOF STUDENT ASSIGNMENT
-            // cout << "bbmatch:" << bbBestMatches.size() << endl;
-            // map<int, int>::iterator it;
-            // for (it=bbBestMatches.begin(); it!=bbBestMatches.end(); ++it)
-            //     cout << "(" << it->first << "," << it->second << ")" << endl;
+
             // store matches in current data frame
             (dataBuffer.end()-1)->bbMatches = bbBestMatches;
 
@@ -284,14 +281,15 @@ int main(int argc, const char *argv[])
                     clusterKptMatchesWithROI(*currBB, (dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, (dataBuffer.end() - 1)->kptMatches, &visImg);                    
                     
                     cv::Mat matchImg;
-                    cv::drawMatches((dataBuffer.end()-2)->cameraImg, (dataBuffer.end()-2)->keypoints, (dataBuffer.end()-1)->cameraImg, (dataBuffer.end()-1)->keypoints, currBB->kptMatches, matchImg);
-                    cv::namedWindow("Match", 4);
-                    cv::imshow("Match", matchImg);
+                    cv::drawMatches((dataBuffer.end()-2)->cameraImg, (dataBuffer.end()-2)->keypoints, (dataBuffer.end()-1)->cameraImg, (dataBuffer.end()-1)->keypoints, currBB->kptMatches, matchImg,
+                                     cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector< char >(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+                    // cv::namedWindow("Result", 4);
+                    cv::imshow("Result", matchImg);
 
-                    computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera);
-                    //// EOF STUDENT ASSIGNMENT
 
-                    bVis = true;
+                    computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera, &visImg);                 //// EOF STUDENT ASSIGNMENT
+
+                    bool bVis = true;
                     if (bVis)
                     {
                         cv::Mat visImg = (dataBuffer.end() - 1)->cameraImg.clone();

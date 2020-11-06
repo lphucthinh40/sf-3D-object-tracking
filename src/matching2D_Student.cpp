@@ -44,6 +44,8 @@ void matchDescriptors(std::vector<cv::KeyPoint> &kPtsSource, std::vector<cv::Key
             }
         }
     }
+
+
 }
 
 // Use one of several types of state-of-art descriptors to uniquely identify keypoints
@@ -118,7 +120,7 @@ void detKeypointsShiTomasi(vector<cv::KeyPoint> &keypoints, cv::Mat &img, bool b
     {
         cv::Mat visImage = img.clone();
         cv::drawKeypoints(img, keypoints, visImage, cv::Scalar::all(-1), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
-        string windowName = "Shi-Tomasi Corner Detector Results";
+        string windowName = "Result";
         cv::namedWindow(windowName, 6);
         imshow(windowName, visImage);
         cv::waitKey(0);
@@ -186,7 +188,7 @@ void detKeypointsHarris(std::vector<cv::KeyPoint> &keypoints, cv::Mat &img, bool
 
     // visualize keypoints
     if (bVis) {
-    string windowName = "Harris Corner Detection Results";
+    string windowName = "Result";
     cv::namedWindow(windowName, 5);
     cv::Mat visImage = dst_norm_scaled.clone();
     cv::drawKeypoints(dst_norm_scaled, keypoints, visImage, cv::Scalar::all(-1), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
@@ -199,7 +201,7 @@ void detKeypointsModern(std::vector<cv::KeyPoint> &keypoints, cv::Mat &img, std:
 {
     cv::Ptr<cv::FeatureDetector> detector;
     if (detectorType.compare("FAST") == 0)
-    {   int threshold = 20;                                                              // difference between intensity of the central pixel and pixels of a circle around this pixel
+    {   int threshold = 30;                                                              // difference between intensity of the central pixel and pixels of a circle around this pixel
         bool bNMS = true;                                                                // perform non-maxima suppression on keypoints
         cv::FastFeatureDetector::DetectorType type = cv::FastFeatureDetector::TYPE_9_16; // TYPE_9_16, TYPE_7_12, TYPE_5_8
         detector = cv::FastFeatureDetector::create(threshold, bNMS, type);
@@ -230,7 +232,7 @@ void detKeypointsModern(std::vector<cv::KeyPoint> &keypoints, cv::Mat &img, std:
     {
         cv::Mat visImage = img.clone();
         cv::drawKeypoints(img, keypoints, visImage, cv::Scalar::all(-1), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
-        string windowName = detectorType + "Results";
+        string windowName = "Result";
         cv::namedWindow(windowName, 1);
         imshow(windowName, visImage);
         cv::waitKey(0);

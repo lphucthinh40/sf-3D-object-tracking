@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <algorithm>
 #include <numeric>
@@ -124,7 +123,7 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
     }
 
     // display image
-    string windowName = "3D Objects";
+    string windowName = "Result";
     cv::namedWindow(windowName, cv::WINDOW_NORMAL);
     cv::imshow(windowName, topviewImg);
 
@@ -136,42 +135,64 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
 
 
 // associate a given bounding box with the keypoints it contains
+bool cmpMatch(const cv::DMatch &m1, const cv::DMatch &m2)
+{
+    return m1.distance < m2.distance;
+}
+
 void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, std::vector<cv::DMatch> &kptMatches, cv::Mat* visImg)
 {   
     // double sumDistance = 0.;
     std::vector<cv::DMatch> tempKptMatches;
     std::vector<double> distance;
 
-    float shrinkFactor = 0.1;
+    const float SINK_FACTOR = 0.15;
+    const float MATCH_PERCENT = 0.5;
+    const float UPPER_DISTANCE_LIMIT = 1.4;
+    // const float SINK_FACTOR = 0.0;
+    // const float MATCH_PERCENT = 1.0;
+
     cv::Rect smallerROI;
-    smallerROI.x = boundingBox.roi.x + shrinkFactor * boundingBox.roi.width / 2.0;
-    smallerROI.y = boundingBox.roi.y + shrinkFactor * boundingBox.roi.height / 2.0;
-    smallerROI.width = boundingBox.roi.width * (1 - shrinkFactor);
-    smallerROI.height = boundingBox.roi.height * (1 - shrinkFactor);
+    smallerROI.x = boundingBox.roi.x + SINK_FACTOR * boundingBox.roi.width / 2.0;
+    smallerROI.y = boundingBox.roi.y + SINK_FACTOR * boundingBox.roi.height / 2.0;
+    smallerROI.width = boundingBox.roi.width * (1 - SINK_FACTOR);
+    smallerROI.height = boundingBox.roi.height * (1 - SINK_FACTOR);
     
+    // find matches that belongs to the current bbox
     for ( cv::DMatch match : kptMatches ) {
         if (smallerROI.contains(kptsCurr[match.trainIdx].pt)) {
             tempKptMatches.push_back(match);
-            double d = cv::norm(kptsCurr[match.trainIdx].pt - kptsPrev[match.queryIdx].pt);
-            distance.push_back(d);
-
-            // sumDistance += d;
-            // std::cout << match.distance << std::endl;
         }
     }
 
-    std::sort(distance.begin(), distance.end());
-    int mid = std::floor(distance.size()/2.0);
-    double medDistance = (distance.size()%2==0)? (distance[mid]+distance[mid-1])/2.0 : distance[mid];
-    // double upperLimit = medDistance * (1+0.2);
-    double limit = medDistance * 1.25;
-    // std::cout << "m=" << medDistance << std::endl;
-    for ( int i=0; i<tempKptMatches.size(); ++i ){
+    // sort based on DMatch distance
+    sort(tempKptMatches.begin(), tempKptMatches.end(), cmpMatch);
+
+    // percentage of matches to be kept (keeping only good matches)
+    int numGoodMatches = tempKptMatches.size() * MATCH_PERCENT;
+    // cout << "nGoodMatch: " << numGoodMatches << endl;
+
+    // find distance from current keypoint to itself on the previous frame
+    for ( cv::DMatch match : tempKptMatches ){
+        double d = cv::norm(kptsCurr[match.trainIdx].pt - kptsPrev[match.queryIdx].pt);
+        distance.push_back(d);
+    }
+    // Using median
+    // std::sort(distance.begin(), distance.end());
+    // int mid = std::floor(distance.size()/2.0);
+    // double median = (distance.size()%2==0)? (distance[mid]+distance[mid-1])/2.0 : distance[mid];
+
+    // Using mean
+    double mean = std::accumulate(distance.begin(), distance.end(), 0.0) / distance.size();
+    double limit = mean * UPPER_DISTANCE_LIMIT; 
+
+    // collect qualified matches for this bbox
+    for ( int i=0; i<numGoodMatches; ++i ){
         if (distance[i]<=limit) {
             boundingBox.kptMatches.push_back(tempKptMatches[i]);
         }
     }
-    std::cout << "kptMatch size: " << boundingBox.kptMatches.size() << std::endl;
+    // std::cout << "kptMatch size: " << boundingBox.kptMatches.size() << std::endl;
     if (visImg != nullptr) {
         cv::RNG rng(boundingBox.boxID);
         // cv::Scalar color = cv::Scalar(rng.uniform(10,200), rng.uniform(10, 200), rng.uniform(10, 200));
@@ -197,21 +218,21 @@ void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint
 // Compute time-to-collision (TTC) based on keypoint correspondences in successive images
 void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, 
                       std::vector<cv::DMatch> kptMatches, double frameRate, double &TTC, cv::Mat *visImg)
-{
+{   const double MAX_DISTANCE = 120.0;
+    const double MIN_DISTANCE = 80.0;
+
     // compute distance ratios between all matched keypoints
     vector<double> distRatios; // stores the distance ratios for all keypoints between curr. and prev. frame
+    int n_unchanged = 0;
+    
     for (auto it1 = kptMatches.begin(); it1 != kptMatches.end() - 1; ++it1)
-    { // outer kpt. loop
-
+    {   // outer kpt. loop
         // get current keypoint and its matched partner in the prev. frame
         cv::KeyPoint kpOuterCurr = kptsCurr.at(it1->trainIdx);
         cv::KeyPoint kpOuterPrev = kptsPrev.at(it1->queryIdx);
 
         for (auto it2 = kptMatches.begin() + 1; it2 != kptMatches.end(); ++it2)
-        { // inner kpt.-loop
-
-            double minDist = 20.0; // min. required distance
-
+        {  // inner kpt.-loop
             // get next keypoint and its matched partner in the prev. frame
             cv::KeyPoint kpInnerCurr = kptsCurr.at(it2->trainIdx);
             cv::KeyPoint kpInnerPrev = kptsPrev.at(it2->queryIdx);
@@ -219,13 +240,17 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
             // compute distances and distance ratios
             double distCurr = cv::norm(kpOuterCurr.pt - kpInnerCurr.pt);
             double distPrev = cv::norm(kpOuterPrev.pt - kpInnerPrev.pt);
-            std::cout << "Curr: " << distCurr << " | Prev: " << distPrev << std::endl;
-            if (distPrev > std::numeric_limits<double>::epsilon() && distCurr >= minDist)
+            // std::cout << "Curr: " << distCurr << " | Prev: " << distPrev << std::endl;
+            if (distPrev > std::numeric_limits<double>::epsilon() && distCurr >= MIN_DISTANCE && distCurr <= MAX_DISTANCE)
             { // avoid division by zero
-
+                if (visImg != nullptr){
+                    cv::line(*visImg, kpOuterCurr.pt, kpInnerCurr.pt, cv::Scalar(0, 255, 0));
+                }
                 double distRatio = distCurr / distPrev;
-                distRatios.push_back(distRatio);
-                std::cout << "dst ratio: " << distRatio << std::endl;
+                if (distRatio <= 1.0)
+                    n_unchanged++;
+                else
+                distRatios.push_back(distRatio); // collect only distance that has been increased
             }
         } // eof inner loop over all matched kpts
     }     // eof outer loop over all matched kpts
@@ -240,14 +265,22 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
     std::sort(distRatios.begin(), distRatios.end());
     long medIndex = floor(distRatios.size() / 2.0);
     double medDistRatio = (distRatios.size() % 2 == 0) ? (distRatios[medIndex - 1] + distRatios[medIndex]) / 2.0 : distRatios[medIndex]; // compute median dist. ratio to remove outlier influence
-    std::cout << "median: " << medDistRatio << std::endl;
     double dT = 1 / frameRate;
     TTC = -dT / (1 - medDistRatio);
+    // std::cout << "TTC: " << TTC << std::endl;
+
+    if (visImg != nullptr){
+        string windowName = "Result";
+        cv::namedWindow(windowName, 4);
+        cv::imshow(windowName, *visImg);
+        cout << "Press key to continue" << endl;
+        cv::waitKey(0);
+    }
 }
 
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
                      std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC)
-{
+{   
     std::vector<double> prevLidarX;
     std::vector<double> currLidarX;
     for (LidarPoint lp: lidarPointsPrev)
@@ -259,7 +292,10 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
     std::sort(currLidarX.begin(), currLidarX.end());
 
     int max_sample = std::min(currLidarX.size(), prevLidarX.size());
-    int n_sample = (max_sample>1)? 1 : max_sample;
+    
+    // int n_sample = 0.05 * currLidarX.size();
+    // n_sample = (n_sample == 0)? 1 : n_sample;
+    const int n_sample = 1; // number of sample to calculate TTC
 
     double prev_minX = 0, curr_minX = 0;
     for (int i=0; i<n_sample; ++i)
@@ -269,12 +305,15 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
     prev_minX /= static_cast<double>(n_sample);
     curr_minX /= static_cast<double>(n_sample);
 
+    // std::cout << curr_minX << " | " << prev_minX << std::endl;
     double dT = 1 / frameRate;
     TTC = curr_minX * dT / (prev_minX - curr_minX);
 }
 
 void mapKeypoint2ROI(std::vector<cv::KeyPoint> &keypoints, std::vector<BoundingBox> &boundingBoxes, std::map<int,int> &kpt2box)
-{
+{   
+    // map keypoint to bounding box, keypoint will be assigned to the first bbox that contains it
+    // this assume bboxes are sorted in descending order of confidence
     for (int i=0; i<keypoints.size(); ++i)
     {  
         vector<int> boxIndexes; // indexes of all bounding boxes which enclose the current Lidar point
@@ -309,13 +348,14 @@ void matchBoundingBoxes(std::vector<cv::DMatch> &matches, std::map<int, int> &bb
     for (int i=0; i<height; i++) 
     {
         bestBoxIdx = std::distance(matchList[i].begin(), std::max_element(matchList[i].begin(), matchList[i].end()));
-        cout << "match boxes (" << i << "," << bestBoxIdx << ") count: " << matchList[i][bestBoxIdx] << endl;
+        // cout << "match boxes (" << i << "," << bestBoxIdx << ") count: " << matchList[i][bestBoxIdx] << endl;
         if (matchList[i][bestBoxIdx]>0 && bPicked[bestBoxIdx]==false) {
             bbBestMatches[prevFrame.boundingBoxes[bestBoxIdx].boxID] = currFrame.boundingBoxes[i].boxID;
             bPicked[bestBoxIdx] = true;
         }
     }
 
+    // display matches bounding boxes
     if (bVis) {
         cv::Mat visCurrImg = currFrame.cameraImg.clone();
         cv::Mat visPrevImg = prevFrame.cameraImg.clone();
