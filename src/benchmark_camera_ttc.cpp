@@ -255,7 +255,7 @@ int main(int argc, const char *argv[])
                             double ttcCamera;
                             cv::Mat visImg = (dataBuffer.end() - 1)->cameraImg.clone();
                             clusterKptMatchesWithROI(*currBB, (dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, (dataBuffer.end() - 1)->kptMatches, nullptr);                                                
-                            computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera, &visImg);
+                            computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera, nullptr);
                             //// EOF STUDENT ASSIGNMENT
                             
                             ttc.push_back(ttcCamera);
