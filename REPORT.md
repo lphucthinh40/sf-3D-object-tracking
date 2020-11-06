@@ -31,9 +31,12 @@ In the top-down view of point cloud above, we can see that minX corresponds to a
 There are several reasons why Camera TTC could be incorrect:
 - *Not enough keypoint matches in ROI region*: more keypoint matches available inside the ROI does not necessarily give us a more reliable TTC result. However, with more keypoint matches, our model will be less susceptible to outliers and noises. To increase the number of keypoints on the vehicle, I apply Contrast Limited Adaptive Histogram Equalization (CLAHE) to each image to enhance the contrast (especially in dark region) before running the detector. To prevent outliers when finding matching keypoints for ROI, I use `UPPER_DISTANCE_LIMIT` parameter as a way to avoid keypoints that displace drastically between frame.
 <img src="result/clahe.png" />
+
 - *Poor-quality keypoint matches*: there could be inaccurate matches due to image quality or the appearance of parts from another vehicle in our ROI region. To address this issue, I added two new parameters: `SHRINK_FACTOR` to limit the region to accept keypoint matches, and `MATCH_PERCENTAGE` to throw away poor-quality matches.
 <img src="result/tcc_case1.png" />
+
 - *The distribution of keypoint matches*: as we use the relative distance ratio between matched keypoints to calculate TTC, we should only accept distances that are within a certain range. This is because small distances are susceptible to noises, while large distances are limited by the distribution of keypoints on the vehicle. Nevertheless, changes between 10ms frames could be trivial for keypoints with large distances. For now, camera TTC will only accept distances ranging from 80 to 120 pixels.
+
 - *Issue with image perspective*: the growth rate of relative distances between keypoints are not always uniform. Distances between far-away keypoints will growth at a slower rate than distances between closer keypoints (w.r.t ego vechile).
 
 ## TESTING WITH DIFFERENT DETECTOR & DESCRIPTOR COMBINATIONS:
