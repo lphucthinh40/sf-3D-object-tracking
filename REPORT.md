@@ -37,7 +37,7 @@ There are several reasons why Camera TTC could be incorrect:
 
 - *The distribution of keypoint matches*: as we use the relative distance ratio between matched keypoints to calculate TTC, we should only accept distances that are within a certain range. This is because small distances are susceptible to noises, while large distances are limited by the distribution of keypoints on the vehicle. Nevertheless, changes between 10ms frames could be trivial for keypoints with large distances. For now, camera TTC will only accept distances ranging from 80 to 120 pixels.
 
-- *Issue with image perspective*: the growth rate of relative distances between keypoints are not always uniform. Distances between far-away keypoints will growth at a slower rate than distances between closer keypoints (w.r.t ego vechile).
+- *Issue with image perspective*: the growth rate of relative distances between keypoints are not always uniform. Distances between far-away keypoints will growth at a slower rate than distances between closer keypoints (w.r.t ego vehicle).
 
 ## TESTING WITH DIFFERENT DETECTOR & DESCRIPTOR COMBINATIONS:
 TTC results for each detector & descriptor combination are collected and written to a csv file  `result/ttc_camera.csv` using `benchmark_camera_ttc.cpp`. Apart from the obvious NAN result in frame 0, other NAN results are due to either because we could not find any relative distances that are within MIN_DISTANCE & MAX_DISTANCE range, or because the vehicle does not get any closer to our ego vehicle compared to the previous frame (resulting in a distance ratio very close to 1).
